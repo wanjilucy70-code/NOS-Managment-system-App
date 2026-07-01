@@ -29,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -72,12 +73,19 @@ class MainActivity : ComponentActivity() {
                 val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
                 val selectedGrade by viewModel.selectedStudentGrade.collectAsStateWithLifecycle()
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                ) {
                     // Full page scenic background image
                     Image(
                         painter = painterResource(id = R.drawable.img_school_backdrop),
                         contentDescription = "School Background Backdrop",
-                        modifier = Modifier.fillMaxSize(),
+                        alpha = 0.7f,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(10.dp),
                         contentScale = ContentScale.Crop
                     )
 
@@ -179,50 +187,73 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
     ) {
         item {
             Spacer(modifier = Modifier.height(24.dp))
-            // School Crest / Logo
-            Image(
-                painter = painterResource(id = R.drawable.img_school_logo),
-                contentDescription = "Neema Oasis School Emblem",
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E0202)),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
-                    .size(130.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(3.dp, AmberGold, RoundedCornerShape(20.dp)),
-                contentScale = ContentScale.Crop
-            )
+                    .fillMaxWidth()
+                    .border(1.2.dp, Color.White.copy(0.25f), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // School Crest / Logo
+                    Image(
+                        painter = painterResource(id = R.drawable.img_school_logo),
+                        contentDescription = "Neema Oasis School Emblem",
+                        modifier = Modifier
+                            .size(130.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .border(3.dp, Color.White, RoundedCornerShape(20.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "NEEMA OASIS SCHOOL",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = "Academic Cabinet & Transport Hub",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E0202)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.2.dp, Color.White.copy(0.2f), RoundedCornerShape(12.dp))
+            ) {
+                Text(
+                    text = "Select Portal to Log In:",
+                    color = CreamWhite,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(12.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "NEEMA OASIS SCHOOL",
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp,
-                textAlign = TextAlign.Center
-            )
-
-            Text(
-                text = "Academic Cabinet & Transport Hub",
-                color = AmberGold,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "Select Portal to Log In:",
-                color = CreamWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
         }
 
         // Color-coded role selector triggers
@@ -346,11 +377,13 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
                                 label = { Text("Student's Full Name") },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = AmberGold,
-                                    unfocusedBorderColor = Color.White.copy(0.3f),
+                                    unfocusedBorderColor = Color.White.copy(0.4f),
                                     focusedLabelColor = AmberGold,
-                                    unfocusedLabelColor = Color.White.copy(0.6f),
+                                    unfocusedLabelColor = Color.White.copy(0.8f),
                                     focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    unfocusedTextColor = Color.White,
+                                    focusedContainerColor = Color(0xFF1E0202),
+                                    unfocusedContainerColor = Color(0xFF1E0202)
                                 ),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp)
@@ -371,11 +404,13 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isGradeDropdownExpanded) },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = AmberGold,
-                                        unfocusedBorderColor = Color.White.copy(0.3f),
+                                        unfocusedBorderColor = Color.White.copy(0.4f),
                                         focusedLabelColor = AmberGold,
-                                        unfocusedLabelColor = Color.White.copy(0.6f),
+                                        unfocusedLabelColor = Color.White.copy(0.8f),
                                         focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
+                                        unfocusedTextColor = Color.White,
+                                        focusedContainerColor = Color(0xFF1E0202),
+                                        unfocusedContainerColor = Color(0xFF1E0202)
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -419,14 +454,16 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
                                 value = emailInput,
                                 onValueChange = { emailInput = it },
                                 label = { Text("Authorized Gmail Address") },
-                                placeholder = { Text("name@gmail.com", color = Color.White.copy(0.3f)) },
+                                placeholder = { Text("name@gmail.com", color = Color.White.copy(0.4f)) },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = AmberGold,
-                                    unfocusedBorderColor = Color.White.copy(0.3f),
+                                    unfocusedBorderColor = Color.White.copy(0.4f),
                                     focusedLabelColor = AmberGold,
-                                    unfocusedLabelColor = Color.White.copy(0.6f),
+                                    unfocusedLabelColor = Color.White.copy(0.8f),
                                     focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    unfocusedTextColor = Color.White,
+                                    focusedContainerColor = Color(0xFF1E0202),
+                                    unfocusedContainerColor = Color(0xFF1E0202)
                                 ),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp)
@@ -821,11 +858,13 @@ fun DriverDashboardScreen(viewModel: SchoolViewModel) {
                         placeholder = { Text("e.g. Bus KBA 123, Odometer 45220, route 4 start") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AmberGold,
-                            unfocusedBorderColor = Color.White.copy(0.3f),
+                            unfocusedBorderColor = Color.White.copy(0.4f),
                             focusedLabelColor = AmberGold,
-                            unfocusedLabelColor = Color.White.copy(0.6f),
+                            unfocusedLabelColor = Color.White.copy(0.8f),
                             focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            unfocusedTextColor = Color.White,
+                            focusedContainerColor = Color(0xFF1E0202),
+                            unfocusedContainerColor = Color(0xFF1E0202)
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
@@ -1807,11 +1846,13 @@ fun AdminPreRegistryConsole(
                 placeholder = { Text("user@gmail.com") },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AmberGold,
-                    unfocusedBorderColor = Color.White.copy(0.3f),
+                    unfocusedBorderColor = Color.White.copy(0.4f),
                     focusedLabelColor = AmberGold,
-                    unfocusedLabelColor = Color.White.copy(0.6f),
+                    unfocusedLabelColor = Color.White.copy(0.8f),
                     focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    unfocusedTextColor = Color.White,
+                    focusedContainerColor = Color(0xFF1E0202),
+                    unfocusedContainerColor = Color(0xFF1E0202)
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)
@@ -1826,11 +1867,13 @@ fun AdminPreRegistryConsole(
                 placeholder = { Text("e.g. Mary Wanjiku") },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AmberGold,
-                    unfocusedBorderColor = Color.White.copy(0.3f),
+                    unfocusedBorderColor = Color.White.copy(0.4f),
                     focusedLabelColor = AmberGold,
-                    unfocusedLabelColor = Color.White.copy(0.6f),
+                    unfocusedLabelColor = Color.White.copy(0.8f),
                     focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    unfocusedTextColor = Color.White,
+                    focusedContainerColor = Color(0xFF1E0202),
+                    unfocusedContainerColor = Color(0xFF1E0202)
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)
@@ -1850,11 +1893,13 @@ fun AdminPreRegistryConsole(
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRoleExpanded) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = AmberGold,
-                        unfocusedBorderColor = Color.White.copy(0.3f),
+                        unfocusedBorderColor = Color.White.copy(0.4f),
                         focusedLabelColor = AmberGold,
-                        unfocusedLabelColor = Color.White.copy(0.6f),
+                        unfocusedLabelColor = Color.White.copy(0.8f),
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF1E0202),
+                        unfocusedContainerColor = Color(0xFF1E0202)
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2046,11 +2091,13 @@ fun UploadFileDialog(
                     label = { Text("Display File Name") },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = AmberGold,
-                        unfocusedBorderColor = Color.White.copy(0.3f),
+                        unfocusedBorderColor = Color.White.copy(0.4f),
                         focusedLabelColor = AmberGold,
-                        unfocusedLabelColor = Color.White.copy(0.6f),
+                        unfocusedLabelColor = Color.White.copy(0.8f),
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF1E0202),
+                        unfocusedContainerColor = Color(0xFF1E0202)
                     ),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
@@ -2065,11 +2112,13 @@ fun UploadFileDialog(
                     label = { Text("File Description / Instructions") },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = AmberGold,
-                        unfocusedBorderColor = Color.White.copy(0.3f),
+                        unfocusedBorderColor = Color.White.copy(0.4f),
                         focusedLabelColor = AmberGold,
-                        unfocusedLabelColor = Color.White.copy(0.6f),
+                        unfocusedLabelColor = Color.White.copy(0.8f),
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF1E0202),
+                        unfocusedContainerColor = Color(0xFF1E0202)
                     ),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
@@ -2091,11 +2140,13 @@ fun UploadFileDialog(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isGradeDropdownExpanded) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AmberGold,
-                                unfocusedBorderColor = Color.White.copy(0.3f),
+                                unfocusedBorderColor = Color.White.copy(0.4f),
                                 focusedLabelColor = AmberGold,
-                                unfocusedLabelColor = Color.White.copy(0.6f),
+                                unfocusedLabelColor = Color.White.copy(0.8f),
                                 focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF1E0202),
+                                unfocusedContainerColor = Color(0xFF1E0202)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2136,11 +2187,13 @@ fun UploadFileDialog(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDriverDropdownExpanded) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AmberGold,
-                                unfocusedBorderColor = Color.White.copy(0.3f),
+                                unfocusedBorderColor = Color.White.copy(0.4f),
                                 focusedLabelColor = AmberGold,
-                                unfocusedLabelColor = Color.White.copy(0.6f),
+                                unfocusedLabelColor = Color.White.copy(0.8f),
                                 focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF1E0202),
+                                unfocusedContainerColor = Color(0xFF1E0202)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()

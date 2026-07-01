@@ -129,3 +129,17 @@ dependencies {
   "ksp"(libs.moshi.kotlin.codegen)
 }
 
+tasks.register<Copy>("prepareApkDownloads") {
+    dependsOn("assembleDebug")
+    from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+    into(rootProject.file(".build-outputs"))
+    
+    doLast {
+        copy {
+            from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+            into(rootProject.file("APK_DOWNLOAD"))
+        }
+    }
+}
+
+
