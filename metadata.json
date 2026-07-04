@@ -1,6 +1,6 @@
 {
-  "name": "Neema Oasis School",
-  "description": "The official academic cabinet and transport hub for Neema Oasis School, featuring color-coded portals, administrative shelves, driver dispatches, and secure login verification.",
+  "name": "NEEMA OASIS SCHOOL",
+  "description": "The official academic cabinet and transport hub for NEEMA OASIS SCHOOL, featuring color-coded portals, administrative shelves, driver dispatches, and secure login verification.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

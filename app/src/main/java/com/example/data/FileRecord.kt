@@ -17,5 +17,7 @@ data class FileRecord(
     val fileSize: Long,
     val timestamp: Long = System.currentTimeMillis(),
     val clockInTime: String? = null,
-    val clockOutTime: String? = null
+    val clockOutTime: String? = null,
+    val uploaderName: String = "",
+    val uploaderClassOrRole: String = ""
 )

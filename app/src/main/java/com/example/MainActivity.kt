@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
                         alpha = 0.7f,
                         modifier = Modifier
                             .fillMaxSize()
-                            .blur(10.dp),
+                            .blur(14.dp),
                         contentScale = ContentScale.Crop
                     )
 
@@ -121,6 +121,30 @@ val GRADES = listOf(
     "Play Group", "PP1", "PP2", "Grade 1", "Grade 2", "Grade 3",
     "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9"
 )
+
+// Helper extension to determine if a FileRecord matches targeted audiences (grades or roles)
+fun com.example.data.FileRecord.matchesTarget(userGrade: String?, userRole: String): Boolean {
+    val targetVal = this.grade ?: return true
+    if (targetVal.trim().isEmpty()) return true
+    
+    val targets = targetVal.split(",").map { it.trim().lowercase() }
+    if (targets.isEmpty() || (targets.size == 1 && targets[0].isEmpty())) {
+        return true
+    }
+    if (targets.contains("all classes") || targets.contains("all") || targets.contains("all grades")) {
+        return true
+    }
+    if (userGrade != null && targets.contains(userGrade.lowercase())) {
+        return true
+    }
+    if (targets.contains(userRole.lowercase())) {
+        return true
+    }
+    if (targetVal.equals(userGrade, ignoreCase = true) || targetVal.equals(userRole, ignoreCase = true)) {
+        return true
+    }
+    return false
+}
 
 // High-contrast Maroon/White definitions
 val DeepMaroon = Color(0xFF7F0000)
@@ -177,6 +201,9 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
     var studentNameInput by remember { mutableStateOf("") }
     var studentGradeInput by remember { mutableStateOf("Play Group") }
     var isGradeDropdownExpanded by remember { mutableStateOf(false) }
+    var studentMode by remember { mutableStateOf("LOGIN") } // "LOGIN" or "REGISTER"
+    var studentPinInput by remember { mutableStateOf("") }
+    val registeredPin by viewModel.registeredStudentPin.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier
@@ -370,38 +397,113 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         if (role == "STUDENT") {
-                            // Student Name
-                            OutlinedTextField(
-                                value = studentNameInput,
-                                onValueChange = { studentNameInput = it },
-                                label = { Text("Student's Full Name") },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AmberGold,
-                                    unfocusedBorderColor = Color.White.copy(0.4f),
-                                    focusedLabelColor = AmberGold,
-                                    unfocusedLabelColor = Color.White.copy(0.8f),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedContainerColor = Color(0xFF1E0202),
-                                    unfocusedContainerColor = Color(0xFF1E0202)
-                                ),
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp)
-                            )
+                            // Show registration success PIN dialog
+                            registeredPin?.let { pin ->
+                                Dialog(onDismissRequest = { viewModel.clearRegisteredStudentPin() }) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C0303)),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(2.dp, Color.Green, RoundedCornerShape(16.dp))
+                                            .padding(4.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = "Success",
+                                                tint = Color.Green,
+                                                modifier = Modifier.size(60.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text(
+                                                text = "Registration Successful!",
+                                                color = Color.White,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Your unique 4-Digit Log in PIN is:",
+                                                color = CreamWhite.copy(0.8f),
+                                                fontSize = 13.sp,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color.White.copy(0.1f), RoundedCornerShape(10.dp))
+                                                    .border(1.5.dp, Color.Green, RoundedCornerShape(10.dp))
+                                                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                                            ) {
+                                                Text(
+                                                    text = pin,
+                                                    color = Color.Green,
+                                                    fontSize = 32.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 4.sp
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text(
+                                                text = "Write these numbers down! You will use them along with your name to log in.",
+                                                color = CreamWhite.copy(0.6f),
+                                                fontSize = 11.sp,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(modifier = Modifier.height(24.dp))
+                                            Button(
+                                                onClick = { viewModel.clearRegisteredStudentPin() },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color.Green),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.fillMaxWidth().height(45.dp)
+                                            ) {
+                                                Text("I have saved it", color = Color.Black, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Student Grade Picker Dropdown
-                            ExposedDropdownMenuBox(
-                                expanded = isGradeDropdownExpanded,
-                                onExpandedChange = { isGradeDropdownExpanded = !isGradeDropdownExpanded }
+                            // Interactive Student Mode Selector (Log In or Register)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                Button(
+                                    onClick = { studentMode = "LOGIN" },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (studentMode == "LOGIN") BrightMaroon else Color.White.copy(0.1f)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.5f)
+                                ) {
+                                    Text("Student Log In", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                                Button(
+                                    onClick = { studentMode = "REGISTER" },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (studentMode == "REGISTER") BrightMaroon else Color.White.copy(0.1f)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.5f)
+                                ) {
+                                    Text("Register Me", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+
+                            if (studentMode == "LOGIN") {
+                                // Log In Form
                                 OutlinedTextField(
-                                    value = studentGradeInput,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Select Class / Grade") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isGradeDropdownExpanded) },
+                                    value = studentNameInput,
+                                    onValueChange = { studentNameInput = it },
+                                    label = { Text("Your Registered Name") },
+                                    placeholder = { Text("e.g. Mary Wanjiku") },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = AmberGold,
                                         unfocusedBorderColor = Color.White.copy(0.4f),
@@ -412,40 +514,122 @@ fun RoleSelectionScreen(viewModel: SchoolViewModel) {
                                         focusedContainerColor = Color(0xFF1E0202),
                                         unfocusedContainerColor = Color(0xFF1E0202)
                                     ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(),
+                                    modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp)
                                 )
 
-                                ExposedDropdownMenu(
-                                    expanded = isGradeDropdownExpanded,
-                                    onDismissRequest = { isGradeDropdownExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF2C0303))
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = studentPinInput,
+                                    onValueChange = { studentPinInput = it },
+                                    label = { Text("4 unique Log in numbers") },
+                                    placeholder = { Text("e.g. 4321") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = AmberGold,
+                                        unfocusedBorderColor = Color.White.copy(0.4f),
+                                        focusedLabelColor = AmberGold,
+                                        unfocusedLabelColor = Color.White.copy(0.8f),
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedContainerColor = Color(0xFF1E0202),
+                                        unfocusedContainerColor = Color(0xFF1E0202)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Button(
+                                    onClick = { viewModel.loginStudent(studentNameInput, studentPinInput) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrightMaroon),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp)
                                 ) {
-                                    GRADES.forEach { gradeOption ->
-                                        DropdownMenuItem(
-                                            text = { Text(gradeOption, color = Color.White, fontWeight = FontWeight.Bold) },
-                                            onClick = {
-                                                studentGradeInput = gradeOption
-                                                isGradeDropdownExpanded = false
-                                            }
-                                        )
+                                    Text("Log In to My Account ➔", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                                }
+                            } else {
+                                // Registration Form (Requires 2 Official Names)
+                                OutlinedTextField(
+                                    value = studentNameInput,
+                                    onValueChange = { studentNameInput = it },
+                                    label = { Text("2 Official Names (required)") },
+                                    placeholder = { Text("e.g. Mary Wanjiku") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = AmberGold,
+                                        unfocusedBorderColor = Color.White.copy(0.4f),
+                                        focusedLabelColor = AmberGold,
+                                        unfocusedLabelColor = Color.White.copy(0.8f),
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedContainerColor = Color(0xFF1E0202),
+                                        unfocusedContainerColor = Color(0xFF1E0202)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Student Grade Picker Dropdown
+                                ExposedDropdownMenuBox(
+                                    expanded = isGradeDropdownExpanded,
+                                    onExpandedChange = { isGradeDropdownExpanded = !isGradeDropdownExpanded }
+                                ) {
+                                    OutlinedTextField(
+                                        value = studentGradeInput,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Select Class / Grade") },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isGradeDropdownExpanded) },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = AmberGold,
+                                            unfocusedBorderColor = Color.White.copy(0.4f),
+                                            focusedLabelColor = AmberGold,
+                                            unfocusedLabelColor = Color.White.copy(0.8f),
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedContainerColor = Color(0xFF1E0202),
+                                            unfocusedContainerColor = Color(0xFF1E0202)
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = isGradeDropdownExpanded,
+                                        onDismissRequest = { isGradeDropdownExpanded = false },
+                                        modifier = Modifier.background(Color(0xFF2C0303))
+                                    ) {
+                                        GRADES.forEach { gradeOption ->
+                                            DropdownMenuItem(
+                                                text = { Text(gradeOption, color = Color.White, fontWeight = FontWeight.Bold) },
+                                                onClick = {
+                                                    studentGradeInput = gradeOption
+                                                    isGradeDropdownExpanded = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                                Spacer(modifier = Modifier.height(20.dp))
 
-                            Button(
-                                onClick = { viewModel.enterAsStudent(studentNameInput, studentGradeInput) },
-                                colors = ButtonDefaults.buttonColors(containerColor = BrightMaroon),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp)
-                            ) {
-                                Text("Enter Student Portal Free ➔", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                                Button(
+                                    onClick = { viewModel.registerStudent(studentNameInput, studentGradeInput) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrightMaroon),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp)
+                                ) {
+                                    Text("Register & Get Login PIN ➔", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                                }
                             }
 
                         } else {
@@ -634,7 +818,7 @@ fun AdminDashboardScreen(viewModel: SchoolViewModel) {
 
             // Tab bar switcher
             TabSelectionBar(
-                tabs = listOf("ACADEMIC", "PRE_REGISTRY", "DISPATCHES", "SHELVES"),
+                tabs = listOf("ACADEMIC", "PRE_REGISTRY", "DISPATCHES", "SHELVES", "SYSTEM MONITOR"),
                 activeTab = activeTab,
                 onTabSelected = { activeTab = it }
             )
@@ -656,7 +840,7 @@ fun AdminDashboardScreen(viewModel: SchoolViewModel) {
                 item {
                     AdminPreRegistryConsole(
                         allUsers = allUsers,
-                        onPreRegister = { email, name, role -> viewModel.preRegisterUser(email, name, role) },
+                        onPreRegister = { email, name, role, grade -> viewModel.preRegisterUser(email, name, role, grade) },
                         onRevoke = { email -> viewModel.revokeUser(email) }
                     )
                 }
@@ -673,6 +857,15 @@ fun AdminDashboardScreen(viewModel: SchoolViewModel) {
                 item {
                     AdminOfficeShelvesPanel(
                         viewModel = viewModel
+                    )
+                }
+            }
+            "SYSTEM MONITOR" -> {
+                item {
+                    AdminSystemMonitorPanel(
+                        viewModel = viewModel,
+                        allFiles = allFiles,
+                        allUsers = allUsers
                     )
                 }
             }
@@ -1040,8 +1233,8 @@ fun StudentDashboardScreen(viewModel: SchoolViewModel, assignedGrade: String) {
     val allFiles by viewModel.allFiles.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Filter academic files specifically assigned to student's grade
-    val filteredFiles = allFiles.filter { it.grade == assignedGrade && it.category != "SHELVES" && it.category != "CLOCK_IN_OUT" }
+    // Filter academic files specifically assigned to student's grade or matched targets
+    val filteredFiles = allFiles.filter { it.matchesTarget(assignedGrade, "STUDENT") && it.category != "SHELVES" && it.category != "CLOCK_IN_OUT" }
 
     // Dialog trigger for uploading homework/projects
     var isUploadDialogOpen by remember { mutableStateOf(false) }
@@ -1395,7 +1588,7 @@ fun CategoryAcademicPanel(
         // Category grids with individual distinct colors & individual custom upload trigger
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             CategoryButtons.forEach { btn ->
-                val count = allFiles.count { it.grade == selectedGradeFilter && it.category == btn.categoryKey }
+                val count = allFiles.count { it.matchesTarget(selectedGradeFilter, "STUDENT") && it.category == btn.categoryKey }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1459,7 +1652,7 @@ fun CategoryAcademicPanel(
         Spacer(modifier = Modifier.height(10.dp))
 
         val displayedFiles = allFiles.filter {
-            it.grade == selectedGradeFilter &&
+            it.matchesTarget(selectedGradeFilter, "STUDENT") &&
             (selectedCategoryFilter == null || it.category == selectedCategoryFilter) &&
             it.category != "SHELVES" && it.category != "CLOCK_IN_OUT"
         }
@@ -1755,19 +1948,43 @@ fun FileRecordCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Sender attribution details
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            // Sender/Uploader details display (uploaderName, uploaderClassOrRole, and formatted Date/Time)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(0.04f), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
             ) {
-                Icon(Icons.Default.Person, contentDescription = "Sender", tint = CreamWhite.copy(0.4f), modifier = Modifier.size(13.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "By: ${file.senderEmail} (${file.senderRole})",
-                    color = CreamWhite.copy(0.5f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                val displayName = file.uploaderName.ifEmpty { 
+                    file.senderEmail.substringBefore("@")
+                }
+                val displayTag = file.uploaderClassOrRole.ifEmpty { 
+                    file.senderRole
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Person, contentDescription = "Uploader Name", tint = AmberGold, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Uploaded By: $displayName",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Tag, contentDescription = "Uploader Tag", tint = CreamWhite.copy(0.6f), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Tag / Dept / Class: $displayTag",
+                        color = CreamWhite.copy(0.7f),
+                        fontSize = 11.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -1807,13 +2024,14 @@ fun FileRecordCard(
 @Composable
 fun AdminPreRegistryConsole(
     allUsers: List<User>,
-    onPreRegister: (String, String, String) -> Unit,
+    onPreRegister: (String, String, String, String?) -> Unit,
     onRevoke: (String) -> Unit
 ) {
     var emailInput by remember { mutableStateOf("") }
     var nameInput by remember { mutableStateOf("") }
     var roleInput by remember { mutableStateOf("TEACHER") }
     var isRoleExpanded by remember { mutableStateOf(false) }
+    var assignedGradeInput by remember { mutableStateOf("Play Group") }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF2C0303)),
@@ -1924,12 +2142,61 @@ fun AdminPreRegistryConsole(
                 }
             }
 
+            // Render class allocation only if registering a TEACHER
+            if (roleInput == "TEACHER") {
+                Spacer(modifier = Modifier.height(10.dp))
+                var isGradeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = isGradeExpanded,
+                    onExpandedChange = { isGradeExpanded = !isGradeExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = assignedGradeInput,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Allocate Class / Grade") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isGradeExpanded) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AmberGold,
+                            unfocusedBorderColor = Color.White.copy(0.4f),
+                            focusedLabelColor = AmberGold,
+                            unfocusedLabelColor = Color.White.copy(0.8f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedContainerColor = Color(0xFF1E0202),
+                            unfocusedContainerColor = Color(0xFF1E0202)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isGradeExpanded,
+                        onDismissRequest = { isGradeExpanded = false },
+                        modifier = Modifier.background(Color(0xFF2C0303))
+                    ) {
+                        GRADES.forEach { gradeOption ->
+                            DropdownMenuItem(
+                                text = { Text(gradeOption, color = Color.White, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    assignedGradeInput = gradeOption
+                                    isGradeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
                     if (emailInput.trim().isNotEmpty() && nameInput.trim().isNotEmpty()) {
-                        onPreRegister(emailInput, nameInput, roleInput)
+                        val allocated = if (roleInput == "TEACHER") assignedGradeInput else null
+                        onPreRegister(emailInput, nameInput, roleInput, allocated)
                         emailInput = ""
                         nameInput = ""
                     }
@@ -1974,7 +2241,12 @@ fun AdminPreRegistryConsole(
                                 .background(Color.White.copy(0.12f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text(user.role, color = AmberGold, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                            val roleText = if (user.role == "TEACHER" && user.studentGrade != null) {
+                                "TEACHER (Class: ${user.studentGrade})"
+                            } else {
+                                user.role
+                            }
+                            Text(roleText, color = AmberGold, fontSize = 9.sp, fontWeight = FontWeight.Black)
                         }
                     }
 
@@ -2001,13 +2273,21 @@ fun UploadFileDialog(
     onDismiss: () -> Unit
 ) {
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
     var selectedFileName by remember { mutableStateOf("") }
     var fileDescriptionInput by remember { mutableStateOf("") }
-    var targetGradeInput by remember { mutableStateOf(predefinedGrade ?: "Play Group") }
-    var isGradeDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedTargets by remember { 
+        mutableStateOf(
+            if (predefinedGrade != null) setOf(predefinedGrade) else setOf("Play Group")
+        ) 
+    }
+
+    // Tag fields as required by student/staff file uploads
+    var uploaderNameInput by remember { mutableStateOf(currentUser?.fullName ?: "") }
+    var uploaderTagInput by remember { mutableStateOf(if (currentUser?.role == "STUDENT") (currentUser?.studentGrade ?: "STUDENT") else (currentUser?.role ?: "")) }
 
     // Driver target tag for dispatches
     var targetDriverEmailInput by remember { mutableStateOf<String?>(null) }
@@ -2124,49 +2404,122 @@ fun UploadFileDialog(
                     shape = RoundedCornerShape(10.dp)
                 )
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tag: Your Official Name
+                OutlinedTextField(
+                    value = uploaderNameInput,
+                    onValueChange = { uploaderNameInput = it },
+                    label = { Text("Tag: Your Official Name (Required)") },
+                    placeholder = { Text("e.g. Mary Wanjiku") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AmberGold,
+                        unfocusedBorderColor = Color.White.copy(0.4f),
+                        focusedLabelColor = AmberGold,
+                        unfocusedLabelColor = Color.White.copy(0.8f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF1E0202),
+                        unfocusedContainerColor = Color(0xFF1E0202)
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tag: Your Class / Role
+                OutlinedTextField(
+                    value = uploaderTagInput,
+                    onValueChange = { uploaderTagInput = it },
+                    label = { Text("Tag: Your Class or Role (Required)") },
+                    placeholder = { Text("e.g. Grade 3, Admin, Teacher, Office") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AmberGold,
+                        unfocusedBorderColor = Color.White.copy(0.4f),
+                        focusedLabelColor = AmberGold,
+                        unfocusedLabelColor = Color.White.copy(0.8f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF1E0202),
+                        unfocusedContainerColor = Color(0xFF1E0202)
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
                 // Render Class selector only if it is NOT private shelves
                 if (predefinedCategory != "SHELVES") {
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    ExposedDropdownMenuBox(
-                        expanded = isGradeDropdownExpanded,
-                        onExpandedChange = { isGradeDropdownExpanded = !isGradeDropdownExpanded }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(0.2f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color.White.copy(0.1f), RoundedCornerShape(10.dp))
                     ) {
-                        OutlinedTextField(
-                            value = targetGradeInput,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Target Class / Grade") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isGradeDropdownExpanded) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AmberGold,
-                                unfocusedBorderColor = Color.White.copy(0.4f),
-                                focusedLabelColor = AmberGold,
-                                unfocusedLabelColor = Color.White.copy(0.8f),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = Color(0xFF1E0202),
-                                unfocusedContainerColor = Color(0xFF1E0202)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-
-                        ExposedDropdownMenu(
-                            expanded = isGradeDropdownExpanded,
-                            onDismissRequest = { isGradeDropdownExpanded = false },
-                            modifier = Modifier.background(Color(0xFF2C0303))
-                        ) {
-                            GRADES.forEach { gradeOption ->
-                                DropdownMenuItem(
-                                    text = { Text(gradeOption, color = Color.White, fontWeight = FontWeight.Bold) },
-                                    onClick = {
-                                        targetGradeInput = gradeOption
-                                        isGradeDropdownExpanded = false
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "🎯 Display To / Target Audiences (Select Multiple):",
+                                color = AmberGold,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 160.dp)
+                            ) {
+                                val scrollState = rememberScrollState()
+                                Column(
+                                    modifier = Modifier
+                                        .verticalScroll(scrollState)
+                                        .padding(4.dp)
+                                ) {
+                                    val allAudienceOptions = listOf("All Classes") + GRADES + listOf("TEACHER", "OFFICE", "DRIVER", "ADMIN", "STUDENT")
+                                    allAudienceOptions.forEach { option ->
+                                        val isChecked = selectedTargets.contains(option)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    selectedTargets = if (isChecked) {
+                                                        selectedTargets - option
+                                                    } else {
+                                                        selectedTargets + option
+                                                    }
+                                                }
+                                                .padding(vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Checkbox(
+                                                checked = isChecked,
+                                                onCheckedChange = { checked ->
+                                                    selectedTargets = if (checked == true) {
+                                                        selectedTargets + option
+                                                    } else {
+                                                        selectedTargets - option
+                                                    }
+                                                },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = BrightMaroon,
+                                                    uncheckedColor = Color.White.copy(0.4f)
+                                                ),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = option,
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -2244,6 +2597,10 @@ fun UploadFileDialog(
 
                     Button(
                         onClick = {
+                            if (uploaderNameInput.trim().isEmpty() || uploaderTagInput.trim().isEmpty()) {
+                                Toast.makeText(context, "Please tag your Name and Class/Role.", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
                             if (selectedFileUri != null && selectedFileName.trim().isNotEmpty()) {
                                 viewModel.handleFileUpload(
                                     context = context,
@@ -2251,8 +2608,10 @@ fun UploadFileDialog(
                                     customFileName = selectedFileName,
                                     description = fileDescriptionInput,
                                     category = predefinedCategory,
-                                    grade = if (predefinedCategory == "SHELVES") null else targetGradeInput,
-                                    targetDriverEmail = targetDriverEmailInput
+                                    grade = if (predefinedCategory == "SHELVES") null else selectedTargets.joinToString(","),
+                                    targetDriverEmail = targetDriverEmailInput,
+                                    uploaderName = uploaderNameInput,
+                                    uploaderClassOrRole = uploaderTagInput
                                 )
                                 onDismiss()
                             } else {
@@ -2274,3 +2633,261 @@ fun UploadFileDialog(
 // Utility extension helper
 fun borderStroke(width: androidx.compose.ui.unit.Dp, color: Color) = 
     androidx.compose.foundation.BorderStroke(width, color)
+
+@Composable
+fun AdminSystemMonitorPanel(
+    viewModel: SchoolViewModel,
+    allFiles: List<FileRecord>,
+    allUsers: List<User>
+) {
+    val context = LocalContext.current
+    val loggedInUsers = allUsers.filter { it.isLoggedIn }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        // --- LIVE LOGGED IN USERS SECTION ---
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2C0303)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "🟢 ACTIVE APP SESSIONS (${loggedInUsers.size})",
+                            color = AmberGold,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Real-time list of logged-in staff, students, and drivers.",
+                            color = CreamWhite.copy(0.7f),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Button(
+                        onClick = { viewModel.resetAllActiveSessions() },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrightMaroon),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Reset All", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                if (loggedInUsers.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No other active sessions detected.",
+                            color = CreamWhite.copy(0.5f),
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        loggedInUsers.forEach { user ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(0.2f), RoundedCornerShape(8.dp))
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(Color.Green, androidx.compose.foundation.shape.CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = user.fullName,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = user.email,
+                                            color = CreamWhite.copy(0.6f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(BrightMaroon.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                                        .border(1.dp, BrightMaroon, RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = user.role + if (user.studentGrade != null) " (${user.studentGrade})" else "",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // --- UPLOADED DOCUMENTS & FILES DIRECTORY ---
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2C0303)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color.White.copy(0.15f), RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "📂 ALL UPLOADED DOCUMENTS & METADATA (${allFiles.size})",
+                    color = AmberGold,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Complete database of uploaded files, uploader info, description, and targets.",
+                    color = CreamWhite.copy(0.7f),
+                    fontSize = 11.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                if (allFiles.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No files uploaded to the app yet.",
+                            color = CreamWhite.copy(0.5f),
+                            fontSize = 12.sp
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        allFiles.forEach { file ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(0.2f)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, Color.White.copy(0.1f), RoundedCornerShape(10.dp))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = file.fileName,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Description: ${file.fileDescription.ifEmpty { "No description provided." }}",
+                                                color = CreamWhite.copy(0.8f),
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (file.localPath != null) {
+                                                IconButton(
+                                                    onClick = { viewModel.downloadFile(context, file) },
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Download, contentDescription = "Download file", tint = AmberGold)
+                                                }
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.deleteFile(file, context) },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Delete record", tint = Color(0xFFD32F2F))
+                                            }
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(0.1f)))
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "Uploaded By: ${file.uploaderName.ifEmpty { "System" }} (${file.uploaderClassOrRole.ifEmpty { "Staff" }})",
+                                                color = AmberGold,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "Category: ${file.category}",
+                                                color = CreamWhite.copy(0.6f),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "Targets: ${file.grade ?: "All Classes / Private"}",
+                                                color = Color.White.copy(0.8f),
+                                                fontSize = 11.sp
+                                            )
+                                            Text(
+                                                text = "Size: ${String.format("%.2f", (file.fileSize ?: 0L) / 1024.0 / 1024.0)} MB",
+                                                color = CreamWhite.copy(0.6f),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

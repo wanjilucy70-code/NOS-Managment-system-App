@@ -76,10 +76,26 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
     }
 
     fun logout() {
+        val user = _currentUser.value
+        if (user != null) {
+            viewModelScope.launch {
+                repository.insertUser(user.copy(isLoggedIn = false))
+            }
+        }
         _currentUser.value = null
         _selectedStudentGrade.value = null
         _currentScreen.value = Screen.RoleSelection
         _authError.value = null
+    }
+
+    fun resetAllActiveSessions() {
+        viewModelScope.launch {
+            repository.resetAllSessions()
+            val current = _currentUser.value
+            if (current != null) {
+                repository.insertUser(current.copy(isLoggedIn = true))
+            }
+        }
     }
 
     // Role-based Gmail Login & Access Verification
@@ -99,7 +115,9 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
             if (user != null) {
                 // Verified email! Log in.
                 if (user.role == role || (user.role == "ADMIN" && role == "ADMIN")) {
-                    _currentUser.value = user
+                    val loggedInUser = user.copy(isLoggedIn = true)
+                    repository.insertUser(loggedInUser)
+                    _currentUser.value = loggedInUser
                     _authError.value = null
                     when (role) {
                         "ADMIN" -> navigateTo(Screen.AdminDashboard)
@@ -117,7 +135,88 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         }
     }
 
-    // Free Student Entrance
+    private val _registeredStudentPin = MutableStateFlow<String?>(null)
+    val registeredStudentPin: StateFlow<String?> = _registeredStudentPin.asStateFlow()
+
+    fun clearRegisteredStudentPin() {
+        _registeredStudentPin.value = null
+    }
+
+    // Student Registration: Checks for 2 Official Names and generates a unique 4-digit Login Pin
+    fun registerStudent(fullName: String, grade: String) {
+        val trimmedName = fullName.trim()
+        if (trimmedName.isEmpty()) {
+            _authError.value = "Please enter your name."
+            return
+        }
+        val nameWords = trimmedName.split("\\s+".toRegex())
+        if (nameWords.size < 2) {
+            _authError.value = "Please register with exactly 2 Official Names (e.g. Mary Wanjiku)."
+            return
+        }
+
+        viewModelScope.launch {
+            // Generate unique 4 digit pin
+            val random = java.util.Random()
+            var pin = ""
+            var attempts = 0
+            while (attempts < 200) {
+                val candidate = (1000 + random.nextInt(9000)).toString()
+                if (repository.getStudentByPin(candidate) == null) {
+                    pin = candidate
+                    break
+                }
+                attempts++
+            }
+            if (pin.isEmpty()) {
+                pin = (1000 + random.nextInt(9000)).toString()
+            }
+
+            val studentEmail = "student.$pin@neema.edu"
+            val newStudent = User(
+                email = studentEmail,
+                fullName = trimmedName,
+                role = "STUDENT",
+                isPreRegistered = false,
+                studentGrade = grade,
+                loginPin = pin
+            )
+
+            repository.insertUser(newStudent)
+            _registeredStudentPin.value = pin
+            _authError.value = null
+        }
+    }
+
+    // Student Login: Authenticate using 2 Official Names and unique 4-digit Login Pin
+    fun loginStudent(fullName: String, loginPin: String) {
+        val trimmedName = fullName.trim()
+        val trimmedPin = loginPin.trim()
+        if (trimmedName.isEmpty() || trimmedPin.isEmpty()) {
+            _authError.value = "Please enter both your name and 4 digit login PIN."
+            return
+        }
+
+        viewModelScope.launch {
+            val student = repository.getStudentByPin(trimmedPin)
+            if (student != null) {
+                if (student.fullName.equals(trimmedName, ignoreCase = true)) {
+                    val loggedInStudent = student.copy(isLoggedIn = true)
+                    repository.insertUser(loggedInStudent)
+                    _currentUser.value = loggedInStudent
+                    _selectedStudentGrade.value = student.studentGrade ?: "Play Group"
+                    _authError.value = null
+                    navigateTo(Screen.StudentDashboard)
+                } else {
+                    _authError.value = "The name provided does not match the registered name for this login number."
+                }
+            } else {
+                _authError.value = "No registered student found with this 4-digit login number."
+            }
+        }
+    }
+
+    // Free Student Entrance (Fallback)
     fun enterAsStudent(fullName: String, grade: String) {
         if (fullName.trim().isEmpty()) {
             _authError.value = "Please enter your name."
@@ -129,22 +228,25 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         viewModelScope.launch {
             // Save/Insert student profile dynamically to populate the stats
             val existing = repository.getUserByEmail(dummyEmail)
-            if (existing == null) {
-                repository.insertUser(
-                    User(
-                        email = dummyEmail,
-                        fullName = fullName,
-                        role = "STUDENT"
-                    )
+            val updatedUser = if (existing == null) {
+                User(
+                    email = dummyEmail,
+                    fullName = fullName,
+                    role = "STUDENT",
+                    studentGrade = grade,
+                    isLoggedIn = true
                 )
+            } else {
+                existing.copy(isLoggedIn = true, studentGrade = grade)
             }
-            _currentUser.value = User(dummyEmail, fullName, "STUDENT")
+            repository.insertUser(updatedUser)
+            _currentUser.value = updatedUser
             navigateTo(Screen.StudentDashboard)
         }
     }
 
     // Admin Action: Pre-register an email
-    fun preRegisterUser(emailStr: String, fullName: String, role: String) {
+    fun preRegisterUser(emailStr: String, fullName: String, role: String, assignedGrade: String? = null) {
         val email = emailStr.trim().lowercase()
         if (email.isEmpty() || fullName.trim().isEmpty()) return
         viewModelScope.launch {
@@ -152,7 +254,8 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
                 User(
                     email = email,
                     fullName = fullName,
-                    role = role
+                    role = role,
+                    studentGrade = assignedGrade
                 )
             )
         }
@@ -173,7 +276,9 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         description: String,
         category: String,
         grade: String?,
-        targetDriverEmail: String?
+        targetDriverEmail: String?,
+        uploaderName: String,
+        uploaderClassOrRole: String
     ) {
         _uploading.value = true
         viewModelScope.launch(Dispatchers.IO) {
@@ -189,14 +294,14 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
                 } else {
                     "File_${System.currentTimeMillis()}.$fileExtension"
                 }
-
+ 
                 // Copy file to internal space
                 val uploadDir = File(context.filesDir, "uploads")
                 if (!uploadDir.exists()) uploadDir.mkdirs()
-
+ 
                 val uniqueName = "${System.currentTimeMillis()}_$cleanName"
                 val destFile = File(uploadDir, uniqueName)
-
+ 
                 var size = 0L
                 contentResolver.openInputStream(uri)?.use { inputStream ->
                     FileOutputStream(destFile).use { outputStream ->
@@ -208,7 +313,7 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
                         }
                     }
                 }
-
+ 
                 val currentStaff = _currentUser.value
                 val fileRecord = FileRecord(
                     fileName = cleanName,
@@ -219,11 +324,13 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
                     senderEmail = currentStaff?.email ?: "anonymous@gmail.com",
                     senderRole = currentStaff?.role ?: "GUEST",
                     localPath = destFile.absolutePath,
-                    fileSize = size
+                    fileSize = size,
+                    uploaderName = uploaderName.ifEmpty { currentStaff?.fullName ?: "Anonymous" },
+                    uploaderClassOrRole = uploaderClassOrRole.ifEmpty { currentStaff?.role ?: "GUEST" }
                 )
-
+ 
                 repository.insertFile(fileRecord)
-
+ 
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Successfully uploaded: $cleanName", Toast.LENGTH_SHORT).show()
                     _uploading.value = false
@@ -291,7 +398,9 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
                     localPath = localPath,
                     fileSize = fileSize,
                     clockInTime = if (isClockIn) timestampStr else null,
-                    clockOutTime = if (!isClockIn) timestampStr else null
+                    clockOutTime = if (!isClockIn) timestampStr else null,
+                    uploaderName = driver.fullName,
+                    uploaderClassOrRole = "DRIVER"
                 )
 
                 repository.insertFile(clockFile)

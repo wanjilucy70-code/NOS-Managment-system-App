@@ -12,11 +12,18 @@ class SchoolRepository(
 
     suspend fun getUserByEmail(email: String): User? = userDao.getUserByEmail(email)
 
+    suspend fun getStudentByPin(loginPin: String): User? = userDao.getStudentByPin(loginPin)
+
+    suspend fun getStudentByNameAndPin(fullName: String, loginPin: String): User? = 
+        userDao.getStudentByNameAndPin(fullName, loginPin)
+
     suspend fun insertUser(user: User) = userDao.insertUser(user)
 
     suspend fun deleteUser(user: User) = userDao.deleteUser(user)
 
     suspend fun deleteUserByEmail(email: String) = userDao.deleteUserByEmail(email)
+
+    suspend fun resetAllSessions() = userDao.resetAllSessions()
 
     fun getUserCountByRole(role: String): Flow<Int> = userDao.getUserCountByRole(role)
 
